@@ -1,1 +1,6 @@
 # helper
+
+requiements: 
+
+```aws configure```
+
