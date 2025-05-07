@@ -4,6 +4,7 @@
 ENDPOINT="https://4ecc77f16aaa2e53317a19267e3034a4.r2.cloudflarestorage.com"
 PROFILE="default"
 DELETE_MODE=false
+LOAD_MODE=false
 
 # Handle optional --delete flag
 if [[ "$1" == "--delete" ]]; then
@@ -11,6 +12,12 @@ if [[ "$1" == "--delete" ]]; then
   echo "⚠️  DELETE MODE ENABLED: mismatched local files will be removed."
 else
   echo "🔎 Preview mode: mismatched local files will be listed but not deleted."
+fi
+if [[ "$1" == "--load" ]]; then
+  LOAD_MODE=true
+  echo "⚠️  LOADING MODE ENABLED: get from the s3 to the folder"
+else
+  echo "🔎 Preview mode: NOT LOAD."
 fi
 
 # Function to compare S3 and local directory by file name and size
@@ -34,8 +41,12 @@ compare_and_handle_mismatches_fast() {
   echo "📂 Generating file list from local disk..."
   find "$local_path" -type f -printf "%P %s\n" | sort > "$local_list"
 
+  echo $s3_list
+  echo $local_list
+
   echo "⚖️ Comparing files..."
-  join -j 1 <(sort "$s3_list") <(sort "$local_list") -o 1.1 1.2 2.2 \
+
+  join -j 1 <(sort "$s3_list") <(sort "$local_list") -o 1.1,1.2,2.2 \
     | awk '$2 != $3 {print $1}' > "$mismatches"
 
   mismatch_count=$(wc -l < "$mismatches")
@@ -57,13 +68,30 @@ compare_and_handle_mismatches_fast() {
     echo "ℹ️ Full list saved to: $mismatches"
     echo "➡️ To delete mismatches, rerun the script with: $0 --delete"
   fi
+  if $LOAD_MODE; then
+    while read f; do
+      aws s3 cp \
+        --endpoint-url $ENDPOINT \
+        $s3_path$f \
+        $local_path
+    done < $mismatches
+  fi
 }
 
 # Call for both store and archive
 compare_and_handle_mismatches_fast \
   "s3://testnet-archive-snapshot/snapshots/store/" \
-  "/data/supra_rpc_configs/rpc_store/"
+  "./supra_rpc_configs/rpc_store/"
 
 compare_and_handle_mismatches_fast \
   "s3://testnet-archive-snapshot/snapshots/archive/" \
-  "/data/supra_rpc_configs/rpc_archive/"
+  "./supra_rpc_configs/rpc_archive/"
+
+
+if $LOAD_MODE; then
+  while read f; do
+    aws s3 cp \
+      --endpoint-url https://4ecc77f16aaa2e53317a19267e3034a4.r2.cloudflarestorage.com \
+      s3://testnet-archive-snapshot/snapshots/store/$f \
+      ./supra_rpc_configs/rpc_store/
+  done < sst_files.txt
