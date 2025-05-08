@@ -80,18 +80,18 @@ compare_and_handle_mismatches_fast() {
 
 # Call for both store and archive
 compare_and_handle_mismatches_fast \
-  "s3://testnet-archive-snapshot/snapshots/store/" \
+  "cloudflare-r2:mainnet/snapshots/store" \
   "./supra_rpc_configs/rpc_store/"
 
 compare_and_handle_mismatches_fast \
-  "s3://testnet-archive-snapshot/snapshots/archive/" \
+  "cloudflare-r2:mainnet/snapshots/archive" \
   "./supra_rpc_configs/rpc_archive/"
 
 
 if $LOAD_MODE; then
   while read f; do
     aws s3 cp \
-      --endpoint-url https://4ecc77f16aaa2e53317a19267e3034a4.r2.cloudflarestorage.com \
-      s3://testnet-archive-snapshot/snapshots/store/$f \
-      ./supra_rpc_configs/rpc_store/
-  done < sst_files.txt
+      --endpoint-url $ENDPOINT \
+       $s3_path$f/$f \
+       $local_path
+  done < $mismatches
